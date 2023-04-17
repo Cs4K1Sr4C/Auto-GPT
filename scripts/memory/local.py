@@ -77,6 +77,25 @@ class LocalCache(MemoryProviderSingleton):
         self.data = CacheContent()
         return "Obliviated"
 
+    def delete(self, index: int) -> None:
+        """
+        Deletes a text from the cache based on its index.
+
+        Args:
+            index: The index of the text to delete.
+
+        Returns: None
+        """
+        del self.data.texts[index]
+        self.data.embeddings = np.delete(self.data.embeddings, index, axis=0)
+
+        with open(self.filename, 'wb') as f:
+            out = orjson.dumps(
+                self.data,
+                option=SAVE_OPTIONS
+            )
+            f.write(out)
+
     def get(self, data: str) -> Optional[List[Any]]:
         """
         Gets the data from the memory that is most relevant to the given data.
