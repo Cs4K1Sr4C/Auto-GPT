@@ -3,6 +3,7 @@ import abc
 from typing import List, Dict
 import openai
 from config import AbstractSingleton, Config
+import numpy as np
 
 cfg = Config()
 
@@ -49,8 +50,9 @@ class MemoryProviderSingleton(AbstractSingleton):
         pass
 
     @staticmethod
-    def get_similarity_score(embedding1: List[float], embedding2: List[float]) -> float:
-        return openai.Similarity().compare(embedding1, embedding2)["score"]
+    def get_similarity_score(self, emb1, emb2):
+        score = np.dot(emb1, emb2) / (np.linalg.norm(emb1) * np.linalg.norm(emb2))
+        return score
 
     @staticmethod
     def get_embeddings(text_list: List[str]) -> List[List[float]]:
