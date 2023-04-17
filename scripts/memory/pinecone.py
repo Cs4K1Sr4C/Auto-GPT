@@ -13,9 +13,6 @@ class PineconeMemory(MemoryProviderSingleton):
         metric = "cosine"
         pod_type = "p1"
         table_name = "auto-gpt"
-        # this assumes we don't start with memory.
-        # for now this works.
-        # we'll need a more complicated and robust system if we want to start with memory.
         self.vec_num = 0
         if table_name not in pinecone.list_indexes():
             pinecone.create_index(table_name, dimension=dimension, metric=metric, pod_type=pod_type)
@@ -23,11 +20,26 @@ class PineconeMemory(MemoryProviderSingleton):
 
     def add(self, data):
         vector = get_ada_embedding(data)
-        # no metadata here. We may wish to change that long term.
         resp = self.index.upsert([(str(self.vec_num), vector, {"raw_text": data})])
-        _text = f"Inserting data into memory at index: {self.vec_num}:\n data: {data}"
         self.vec_num += 1
-        return _text
+        return f"Inserting data into memory at index: {self.vec_num-1}:\n data: {data}"
+
+    def update(self, index, new_data):
+        old_data = self.get_data(index)
+        if old_data:
+            self.index.delete(ids=[str(index)])
+            self.add(new_data)
+            return f"Data at index {index} updated from {old_data} to {new_data}."
+        else:
+            return f"No data found at index {index}."
+
+    def delete(self, index):
+        data = self.get_data(index)
+        if data:
+            self.index.delete(ids=[str(index)])
+            return f"Data at index {index} ({data}) deleted from memory."
+        else:
+            return f"No data found at index {index}."
 
     def get(self, data):
         return self.get_relevant(data, 1)
@@ -37,11 +49,6 @@ class PineconeMemory(MemoryProviderSingleton):
         return "Obliviated"
 
     def get_relevant(self, data, num_relevant=5):
-        """
-        Returns all the data in the memory that is relevant to the given data.
-        :param data: The data to compare to.
-        :param num_relevant: The number of relevant data to return. Defaults to 5
-        """
         query_embedding = get_ada_embedding(data)
         results = self.index.query(query_embedding, top_k=num_relevant, include_metadata=True)
         sorted_results = sorted(results.matches, key=lambda x: x.score)
@@ -49,3 +56,11 @@ class PineconeMemory(MemoryProviderSingleton):
 
     def get_stats(self):
         return self.index.describe_index_stats()
+
+    def get_data(self, index):
+        result = self.index.query(ids=[str(index)], include_metadata=True)
+        if len(result.matches) > 0:
+            return result.matches[0]['metadata']["raw_text"]
+        else:
+            return None
+
